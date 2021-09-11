@@ -17,4 +17,4 @@ EXPOSE 9102
 EXPOSE 9051
 
 
-CMD [ "python3", "wg_ges_bot_tor_6_cities.py" ]
+CMD [ "python3", "src/wg_ges_bot_tor_6_cities.py" ]
