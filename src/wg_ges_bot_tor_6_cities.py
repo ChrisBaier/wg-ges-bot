@@ -1,3 +1,5 @@
+import requests
+
 from wg_ges_bot import Ad, Subscriber, FilterRent, FilterGender, FilterAvailability, FilterCity, FilterAvailableFrom, \
     FilterAvailableTo
 
@@ -69,7 +71,7 @@ def tor_request(url: str):
     with TorRequest(proxy_port=9050, ctrl_port=9051, password=params.tor_pwd) as tr:
         with tor_lock:
             time.sleep(uniform(TIME_BETWEEN_REQUESTS, TIME_BETWEEN_REQUESTS + 2))
-            page = tr.get(url, headers=headers)
+            page = requests.get(url, headers=headers)
             if 'Nutzungsaktivitäten, die den Zweck haben' in page.text:
                 consecutive_tor_reqs = 0
                 ip = get_current_ip(tr)
