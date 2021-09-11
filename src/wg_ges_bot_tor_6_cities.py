@@ -14,7 +14,6 @@ from threading import Lock
 from torrequest import TorRequest
 from bs4 import BeautifulSoup
 from random import uniform
-from fake_useragent import UserAgent
 from textwrap import wrap
 from typing import List, Dict, Any
 
@@ -55,7 +54,6 @@ def get_current_ip(tr):
 def tor_request(url: str):
     global consecutive_tor_reqs
     global torip
-    ua = UserAgent()
 
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -66,7 +64,7 @@ def tor_request(url: str):
         'DNT': '1',
         'Host': 'www.wg-gesucht.de',
         'Referrer': 'https://www.wg-gesucht.de/',
-        'User-Agent': ua.random,
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0',
     }
     with TorRequest(proxy_port=9050, ctrl_port=9051, password=params.tor_pwd) as tr:
         with tor_lock:
