@@ -68,27 +68,13 @@ def tor_request(url: str):
         'Referrer': 'https://www.wg-gesucht.de/',
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0',
     }
-    with TorRequest(proxy_port=9050, ctrl_port=9051, password=params.tor_pwd) as tr:
-        with tor_lock:
-            time.sleep(uniform(TIME_BETWEEN_REQUESTS, TIME_BETWEEN_REQUESTS + 2))
-            page = requests.get(url, headers=headers)
-            if 'Nutzungsaktivitäten, die den Zweck haben' in page.text:
-                consecutive_tor_reqs = 0
-                ip = get_current_ip(tr)
-                logging.warning('tor req got AGB page at exit node {}'.format(ip))
-                tr.reset_identity_async()
-                return None
-            else:
-                if consecutive_tor_reqs == 0:
-                    torip = get_current_ip(tr)
-                if consecutive_tor_reqs % 100 == 0:
-                    logging.info('tor req fine consecutive #{} at {} '.format(consecutive_tor_reqs, torip))
-                consecutive_tor_reqs += 1
-                if consecutive_tor_reqs >= max_consecutive_tor_reqs:
-                    tr.reset_identity_async()
-                    consecutive_tor_reqs = 0
-
-                return page
+    time.sleep(uniform(TIME_BETWEEN_REQUESTS, TIME_BETWEEN_REQUESTS + 2))
+    page = requests.get(url, headers=headers)
+    if 'Nutzungsaktivitäten, die den Zweck haben' in page.text:
+        logging.warning('Request got AGB page')
+        return None
+    else:
+        return page
 
 
 def get_ads_from_listings(listings: List[BeautifulSoup], city: str, first_run=False) -> set:
