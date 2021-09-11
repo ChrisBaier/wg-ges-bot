@@ -137,7 +137,7 @@ def job_scrape_city(bot: Bot, job: Job):
         if page:
             # no dependencies, so use that one if it works
             soup = BeautifulSoup(page.content, 'html.parser')
-            listings_with_ads_and_hidden = soup.find_all(class_="list-details-ad-border")
+            listings_with_ads_and_hidden = soup.find_all(class_="offer_list_item")
             logging.info(f"Found {len(listings_with_ads_and_hidden)} items for city {city}")
             listings = []
 
