@@ -8,7 +8,7 @@ COPY /res/torrc /etc/tor/torrc
 
 WORKDIR /app
 
-ADD src/. ./
+ADD . ./
 
 RUN pip install -r requirements.txt
 
