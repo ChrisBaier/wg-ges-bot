@@ -51,7 +51,7 @@ class Ad:
 
     def to_chat_message(self):
         gender_mapping = {'w': '🚺', 'm': '🚹'}
-        return '{}\n{} - {}€\n{}\n{}\n{}\n{}'.format(
+        return '{}\n{}m² für {}€\n{}\n{}\n{}\n{}'.format(
             self.title,
             self.size,
             self.rent,
