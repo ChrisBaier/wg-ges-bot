@@ -545,8 +545,7 @@ if __name__ == '__main__':
     stemlogger.isEnabledFor(logging.FATAL)
     stemlogger.isEnabledFor(logging.ERROR)
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', filename='wg_ges_bot_tor.log',
-                        level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     logging.info('starting bot')
 
     updater = Updater(token=params.token, workers=12)
