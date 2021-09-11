@@ -203,7 +203,7 @@ def scrape_begin_city(bot: Bot, update: Update, job_queue: JobQueue, chat_data, 
             update.message.reply_text(
                 'wg_ges scraper job was already set! /scrape_stop_city {} to kill it'.format(city))
         else:
-            job = job_queue.run_repeating(callback=job_scrape_city, interval=75, first=10, context=city)
+            job = job_queue.run_repeating(callback=job_scrape_city, interval=75, first=5, context=city)
             chat_data[city] = job
             logging.info('start scraping {}'.format(city))
             update.message.reply_text(
