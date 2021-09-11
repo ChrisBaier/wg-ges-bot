@@ -143,7 +143,7 @@ def job_scrape_city(bot: Bot, job: Job):
     try:
         page = tor_request(url)
     except Exception as e:
-        logging.warning('request at job_scrape_city threw exception: - {}'.format(e))
+        logging.exception('request at job_scrape_city threw exception: - {}'.format(e))
     else:
         # might return None due to agb page
         if page:
