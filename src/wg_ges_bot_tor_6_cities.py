@@ -137,21 +137,31 @@ def job_scrape_city(bot: Bot, job: Job):
         if page:
             # no dependencies, so use that one if it works
             soup = BeautifulSoup(page.content, 'html.parser')
-            # soup = BeautifulSoup(page.content, 'lxml')
             listings_with_ads_and_hidden = soup.find_all(class_="list-details-ad-border")
+            logging.info(f"Found {len(listings_with_ads_and_hidden)} items for city {city}")
             listings = []
 
             # clean out hidden ones and ads
             for listing in listings_with_ads_and_hidden:
                 id_of_listing = listing.get_attribute_list('id')[0]
-                if (id_of_listing is not None) \
-                        and ('hidden' not in id_of_listing) \
-                        and ('listAdPos' not in listing.parent.get_attribute_list('id')[0]):
-                    listings.append(listing)
+                if id_of_listing is not None:
+                    logging.info(f"Scanning listing item {id_of_listing}:")
+                    if 'hidden' in id_of_listing:
+                        logging.info(f"Listing {id_of_listing} is hidden")
+                    elif 'listAdPos' in listing.parent.get_attribute_list('id')[0]:
+                        logging.info(f"Listing {id_of_listing} listAdPos is "
+                                     f"in parent id list: "
+                                     f"{listing.parent.get_attribute_list('id')[0]}")
+                    else:
+                        logging.info(f"Listing {id_of_listing} added")
+                        listings.append(listing)
+                else:
+                    logging.error(f"No id found in listing:\n{listing}")
 
             if len(listings) == 0:
-                logging.warning('len listings == 0')
+                logging.warning(f"No listings in city {city} found :(")
             else:
+                logging.info(f"{len(listings)} listings found in city {city} :)")
                 current_ads[city] = get_ads_from_listings(listings, city, False)
 
 
