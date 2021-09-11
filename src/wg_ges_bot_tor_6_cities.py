@@ -18,6 +18,12 @@ from bs4 import BeautifulSoup
 from random import uniform
 from textwrap import wrap
 from typing import List, Dict, Any
+import re
+
+PRICEPATTERN = re.compile(r"(\d+) €")
+AREAPATTERN = re.compile(r"(\d+) m²")
+WHITESPACEPATTERN = re.compile(r"\s+")
+
 
 # import some secret params from other file
 import params
@@ -76,52 +82,58 @@ def tor_request(url: str):
     else:
         return page
 
+def get_searched_sex(listing):
+    images = listing.find_all("img")
+    for image in images:
+        try:
+            alt_text = image.get_attribute_list('alt')[0]
+            if "gesucht" in alt_text or "gesuch" in alt_text:
+                return alt_text
+        except TypeError:
+            pass
+
+def get_location(listing):
+    return " - ".join(list(map(
+            lambda t: WHITESPACEPATTERN.sub(" ", t).strip(),
+            listing.find(class_="printonly").find_all("div")[1].text.split("|")[1:]
+    )))
+
+def get_mates(listing):
+    return listing.find(class_="printonly").find_all("div")[1].text.split("|")[0].strip()
+
+def get_availability(listing):
+    text = listing.find(class_="card_body").find_all("div")[4].find_all("div")[-2].text
+    return "Verfügbar: " + text.replace(" ","").replace("\n","").replace("ab","").replace("-", " - ")
+
+def get_title(listing):
+    return listing.find(class_="detailansicht").contents[1].text
+
+def get_rent(listing):
+    return PRICEPATTERN.search(str(listing.find_all(class_="printonly")[0].find_all("div")[0].text)).groups()[0]
+
+def get_size(listing):
+    return AREAPATTERN.search(str(listing.find_all(class_="printonly")[0].find_all("div")[0])).groups()[0]
+
+def get_link(listing):
+    path = listing.find_all("a")[0].get_attribute_list("href")[0]
+    return f"https://www.wg-gesucht.de{path}"
 
 def get_ads_from_listings(listings: List[BeautifulSoup], city: str, first_run=False) -> set:
-    new_ads = set()
-    for listing in listings:
-        links = listing.find_all('a', class_='detailansicht')
-        link_to_offer = 'https://www.wg-gesucht.de/{}'.format(links[0].get_attribute_list('href')[0])
-        # logging.info('new offer: {}'.format(link_to_offer))
-
-        price_wrapper = listing.find(class_="detail-size-price-wrapper")
-        link_named_price = price_wrapper.find(class_="detailansicht")
-
-        # print(list(link_named_price.children))
-        size, rent = next(link_named_price.children).replace(' ', '').replace('\n', '').replace('€', '').split('|')
-        mates = link_named_price.find('span').get_attribute_list('title')[0]
-        # print(mates)
-        searching_for = link_named_price.find_all('img')[-1].get_attribute_list('alt')[0].replace(
-            'Mitbewohnerin', '🚺').replace('Mitbwohner', '🚹').replace('Mitbewohner', '🚹')
-
-        headline = listing.find(class_='headline-list-view')
-        # mates = headline.find('span').get_attribute_list('title')[0]
-        # emojis read faster -- also note the typo from the page missing the first e in mitbewohner
-        # searching_for = headline.find_all('img')[-1].get_attribute_list('alt')[0].replace('Mitbewohnerin', '🚺')
-        # searching_for = searching_for.replace('Mitbwohner', '🚹').replace('Mitbewohner', '🚹')
-        title = headline.find('a').text.replace('\n', '').strip()
-
-        location_and_availability = listing.find('p')
-        location_and_availability_split = location_and_availability.text[
-                                          location_and_availability.text.index('in'):].replace('\n', '').split()
-        index_avail = location_and_availability_split.index('Verfügbar:')
-        location = ' '.join(location_and_availability_split[:index_avail])
-        availability = ' '.join(location_and_availability_split[index_avail:])
-        wg_details = '{} {}'.format(mates, location)
-
-        info = {
+    return set([
+        Ad.from_dict({
             'city': city,
-            'url': link_to_offer,
-            'title': title,
-            'size': size,
-            'rent': rent,
-            'availability': availability,
-            'wg_details': wg_details,
-            'searching_for': searching_for,
-        }
-        ad = Ad.from_dict(info)
-        new_ads.add(ad)
-    return new_ads
+            'url': get_link(listing),
+            'title': get_title(listing),
+            'size': get_size(listing),
+            'rent': get_rent(listing),
+            'availability': get_availability(listing),
+            'wg_details': f"{get_mates(listing)} {get_location(listing)}",
+            'searching_for': get_searched_sex(listing)
+                .replace('Mitbewohnerin', '🚺')
+                .replace('Mitbwohner', '🚹')
+                .replace('Mitbewohner', '🚹')})
+        for listing
+        in listings])
 
 
 def job_scrape_city(bot: Bot, job: Job):
