@@ -1,3 +1,5 @@
+import requests
+
 from wg_ges_bot import Ad, Subscriber, FilterRent, FilterGender, FilterAvailability, FilterCity, FilterAvailableFrom, \
     FilterAvailableTo
 
@@ -11,12 +13,16 @@ import logging
 import time
 import stem
 from threading import Lock
-from torrequest import TorRequest
 from bs4 import BeautifulSoup
 from random import uniform
-from fake_useragent import UserAgent
 from textwrap import wrap
-from typing import List, Dict, Any
+from typing import List
+import re
+
+PRICEPATTERN = re.compile(r"(\d+) €")
+AREAPATTERN = re.compile(r"(\d+) m²")
+WHITESPACEPATTERN = re.compile(r"\s+")
+
 
 # import some secret params from other file
 import params
@@ -55,7 +61,6 @@ def get_current_ip(tr):
 def tor_request(url: str):
     global consecutive_tor_reqs
     global torip
-    ua = UserAgent()
 
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -66,76 +71,68 @@ def tor_request(url: str):
         'DNT': '1',
         'Host': 'www.wg-gesucht.de',
         'Referrer': 'https://www.wg-gesucht.de/',
-        'User-Agent': ua.random,
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0',
     }
-    with TorRequest(proxy_port=9050, ctrl_port=9051, password=params.tor_pwd) as tr:
-        with tor_lock:
-            time.sleep(uniform(TIME_BETWEEN_REQUESTS, TIME_BETWEEN_REQUESTS + 2))
-            page = tr.get(url, headers=headers)
-            if 'Nutzungsaktivitäten, die den Zweck haben' in page.text:
-                consecutive_tor_reqs = 0
-                ip = get_current_ip(tr)
-                logging.warning('tor req got AGB page at exit node {}'.format(ip))
-                tr.reset_identity_async()
-                return None
-            else:
-                if consecutive_tor_reqs == 0:
-                    torip = get_current_ip(tr)
-                if consecutive_tor_reqs % 100 == 0:
-                    logging.info('tor req fine consecutive #{} at {} '.format(consecutive_tor_reqs, torip))
-                consecutive_tor_reqs += 1
-                if consecutive_tor_reqs >= max_consecutive_tor_reqs:
-                    tr.reset_identity_async()
-                    consecutive_tor_reqs = 0
+    time.sleep(uniform(TIME_BETWEEN_REQUESTS, TIME_BETWEEN_REQUESTS + 2))
+    page = requests.get(url, headers=headers)
+    if 'Nutzungsaktivitäten, die den Zweck haben' in page.text:
+        logging.warning('Request got AGB page')
+        return None
+    else:
+        return page
 
-                return page
+def get_searched_sex(listing):
+    images = listing.find_all("img")
+    for image in images:
+        try:
+            alt_text = image.get_attribute_list('alt')[0]
+            if "gesucht" in alt_text or "gesuch" in alt_text:
+                return alt_text
+        except TypeError:
+            pass
 
+def get_location(listing):
+    return " - ".join(list(map(
+            lambda t: WHITESPACEPATTERN.sub(" ", t).strip(),
+            listing.find(class_="printonly").find_all("div")[1].text.split("|")[1:]
+    )))
+
+def get_mates(listing):
+    return listing.find(class_="printonly").find_all("div")[1].text.split("|")[0].strip()
+
+def get_availability(listing):
+    text = listing.find(class_="card_body").find_all("div")[4].find_all("div")[-2].text
+    return "Verfügbar: " + text.replace(" ","").replace("\n","").replace("ab","").replace("-", " - ")
+
+def get_title(listing):
+    return listing.find(class_="detailansicht").contents[1].text
+
+def get_rent(listing):
+    return PRICEPATTERN.search(str(listing.find_all(class_="printonly")[0].find_all("div")[0].text)).groups()[0]
+
+def get_size(listing):
+    return AREAPATTERN.search(str(listing.find_all(class_="printonly")[0].find_all("div")[0])).groups()[0]
+
+def get_link(listing):
+    path = listing.find_all("a")[0].get_attribute_list("href")[0]
+    return f"https://www.wg-gesucht.de{path}"
 
 def get_ads_from_listings(listings: List[BeautifulSoup], city: str, first_run=False) -> set:
-    new_ads = set()
-    for listing in listings:
-        links = listing.find_all('a', class_='detailansicht')
-        link_to_offer = 'https://www.wg-gesucht.de/{}'.format(links[0].get_attribute_list('href')[0])
-        # logging.info('new offer: {}'.format(link_to_offer))
-
-        price_wrapper = listing.find(class_="detail-size-price-wrapper")
-        link_named_price = price_wrapper.find(class_="detailansicht")
-
-        # print(list(link_named_price.children))
-        size, rent = next(link_named_price.children).replace(' ', '').replace('\n', '').replace('€', '').split('|')
-        mates = link_named_price.find('span').get_attribute_list('title')[0]
-        # print(mates)
-        searching_for = link_named_price.find_all('img')[-1].get_attribute_list('alt')[0].replace(
-            'Mitbewohnerin', '🚺').replace('Mitbwohner', '🚹').replace('Mitbewohner', '🚹')
-
-        headline = listing.find(class_='headline-list-view')
-        # mates = headline.find('span').get_attribute_list('title')[0]
-        # emojis read faster -- also note the typo from the page missing the first e in mitbewohner
-        # searching_for = headline.find_all('img')[-1].get_attribute_list('alt')[0].replace('Mitbewohnerin', '🚺')
-        # searching_for = searching_for.replace('Mitbwohner', '🚹').replace('Mitbewohner', '🚹')
-        title = headline.find('a').text.replace('\n', '').strip()
-
-        location_and_availability = listing.find('p')
-        location_and_availability_split = location_and_availability.text[
-                                          location_and_availability.text.index('in'):].replace('\n', '').split()
-        index_avail = location_and_availability_split.index('Verfügbar:')
-        location = ' '.join(location_and_availability_split[:index_avail])
-        availability = ' '.join(location_and_availability_split[index_avail:])
-        wg_details = '{} {}'.format(mates, location)
-
-        info = {
+    return set([
+        Ad.from_dict({
             'city': city,
-            'url': link_to_offer,
-            'title': title,
-            'size': size,
-            'rent': rent,
-            'availability': availability,
-            'wg_details': wg_details,
-            'searching_for': searching_for,
-        }
-        ad = Ad.from_dict(info)
-        new_ads.add(ad)
-    return new_ads
+            'url': get_link(listing),
+            'title': get_title(listing),
+            'size': get_size(listing),
+            'rent': get_rent(listing),
+            'availability': get_availability(listing),
+            'wg_details': f"{get_mates(listing)} {get_location(listing)}",
+            'searching_for': get_searched_sex(listing)
+                .replace('Mitbewohnerin', '🚺')
+                .replace('Mitbwohner', '🚹')
+                .replace('Mitbewohner', '🚹')})
+        for listing
+        in listings])
 
 
 def job_scrape_city(bot: Bot, job: Job):
@@ -145,27 +142,33 @@ def job_scrape_city(bot: Bot, job: Job):
     try:
         page = tor_request(url)
     except Exception as e:
-        logging.warning('request at job_scrape_city threw exception: - {}'.format(e))
+        logging.exception('request at job_scrape_city threw exception: - {}'.format(e))
     else:
         # might return None due to agb page
         if page:
             # no dependencies, so use that one if it works
             soup = BeautifulSoup(page.content, 'html.parser')
-            # soup = BeautifulSoup(page.content, 'lxml')
-            listings_with_ads_and_hidden = soup.find_all(class_="list-details-ad-border")
+            listings_with_ads_and_hidden = soup.find_all(class_="offer_list_item")
+            logging.info(f"Found {len(listings_with_ads_and_hidden)} items for city {city}")
             listings = []
 
             # clean out hidden ones and ads
             for listing in listings_with_ads_and_hidden:
                 id_of_listing = listing.get_attribute_list('id')[0]
-                if (id_of_listing is not None) \
-                        and ('hidden' not in id_of_listing) \
-                        and ('listAdPos' not in listing.parent.get_attribute_list('id')[0]):
-                    listings.append(listing)
+                if id_of_listing is not None:
+                    logging.info(f"Scanning listing item {id_of_listing}:")
+                    if 'hidden' in id_of_listing:
+                        logging.info(f"Listing {id_of_listing} is hidden")
+                    else:
+                        logging.info(f"Listing {id_of_listing} added")
+                        listings.append(listing)
+                else:
+                    logging.error(f"No id found in listing:\n{listing}")
 
             if len(listings) == 0:
-                logging.warning('len listings == 0')
+                logging.warning(f"No listings in city {city} found :(")
             else:
+                logging.info(f"{len(listings)} listings found in city {city} :)")
                 current_ads[city] = get_ads_from_listings(listings, city, False)
 
 
@@ -200,7 +203,7 @@ def scrape_begin_city(bot: Bot, update: Update, job_queue: JobQueue, chat_data, 
             update.message.reply_text(
                 'wg_ges scraper job was already set! /scrape_stop_city {} to kill it'.format(city))
         else:
-            job = job_queue.run_repeating(callback=job_scrape_city, interval=75, first=10, context=city)
+            job = job_queue.run_repeating(callback=job_scrape_city, interval=75, first=5, context=city)
             chat_data[city] = job
             logging.info('start scraping {}'.format(city))
             update.message.reply_text(
@@ -547,8 +550,7 @@ if __name__ == '__main__':
     stemlogger.isEnabledFor(logging.FATAL)
     stemlogger.isEnabledFor(logging.ERROR)
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', filename='wg_ges_bot_tor.log',
-                        level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     logging.info('starting bot')
 
     updater = Updater(token=params.token, workers=12)
