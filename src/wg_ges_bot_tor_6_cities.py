@@ -13,11 +13,10 @@ import logging
 import time
 import stem
 from threading import Lock
-from torrequest import TorRequest
 from bs4 import BeautifulSoup
 from random import uniform
 from textwrap import wrap
-from typing import List, Dict, Any
+from typing import List
 import re
 
 PRICEPATTERN = re.compile(r"(\d+) €")
