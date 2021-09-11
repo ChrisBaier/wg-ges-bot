@@ -160,10 +160,6 @@ def job_scrape_city(bot: Bot, job: Job):
                     logging.info(f"Scanning listing item {id_of_listing}:")
                     if 'hidden' in id_of_listing:
                         logging.info(f"Listing {id_of_listing} is hidden")
-                    elif 'listAdPos' in listing.parent.get_attribute_list('id')[0]:
-                        logging.info(f"Listing {id_of_listing} listAdPos is "
-                                     f"in parent id list: "
-                                     f"{listing.parent.get_attribute_list('id')[0]}")
                     else:
                         logging.info(f"Listing {id_of_listing} added")
                         listings.append(listing)
