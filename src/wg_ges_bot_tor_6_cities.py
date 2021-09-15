@@ -118,21 +118,25 @@ def get_link(listing):
     return f"https://www.wg-gesucht.de{path}"
 
 def get_ads_from_listings(listings: List[BeautifulSoup], city: str, first_run=False) -> set:
-    return set([
-        Ad.from_dict({
-            'city': city,
-            'url': get_link(listing),
-            'title': get_title(listing),
-            'size': get_size(listing),
-            'rent': get_rent(listing),
-            'availability': get_availability(listing),
-            'wg_details': f"{get_mates(listing)} {get_location(listing)}",
-            'searching_for': get_searched_sex(listing)
-                .replace('Mitbewohnerin', '🚺')
-                .replace('Mitbwohner', '🚹')
-                .replace('Mitbewohner', '🚹')})
-        for listing
-        in listings])
+    def toAd(listing: BeautifulSoup):
+        try:
+            return Ad.from_dict({
+                'city': city,
+                'url': get_link(listing),
+                'title': get_title(listing),
+                'size': get_size(listing),
+                'rent': get_rent(listing),
+                'availability': get_availability(listing),
+                'wg_details': f"{get_mates(listing)} {get_location(listing)}",
+                'searching_for': get_searched_sex(listing)
+                    .replace('Mitbewohnerin', '🚺')
+                    .replace('Mitbwohner', '🚹')
+                    .replace('Mitbewohner', '🚹')})
+        except Exception as e:
+            logging.exception(f"Failed to parse listing:\n{listing}")
+            return None
+
+    return set(map(lambda listing: toAd(listing), listings))
 
 
 def job_scrape_city(bot: Bot, job: Job):
@@ -540,15 +544,6 @@ def error(bot: Bot, update: Update, error):
 
 
 if __name__ == '__main__':
-    # stemlogger spammed a lot and i failed setting it to only warnings
-    stemlogger = stem.util.log.get_logger()
-    stemlogger.disabled = True
-    # maybe this does it
-    stemlogger.isEnabledFor(logging.WARN)
-    stemlogger.isEnabledFor(logging.WARNING)
-    stemlogger.isEnabledFor(logging.CRITICAL)
-    stemlogger.isEnabledFor(logging.FATAL)
-    stemlogger.isEnabledFor(logging.ERROR)
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     logging.info('starting bot')
