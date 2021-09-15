@@ -544,15 +544,6 @@ def error(bot: Bot, update: Update, error):
 
 
 if __name__ == '__main__':
-    # stemlogger spammed a lot and i failed setting it to only warnings
-    stemlogger = stem.util.log.get_logger()
-    stemlogger.disabled = True
-    # maybe this does it
-    stemlogger.isEnabledFor(logging.WARN)
-    stemlogger.isEnabledFor(logging.WARNING)
-    stemlogger.isEnabledFor(logging.CRITICAL)
-    stemlogger.isEnabledFor(logging.FATAL)
-    stemlogger.isEnabledFor(logging.ERROR)
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
     logging.info('starting bot')
